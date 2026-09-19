@@ -1,0 +1,12 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+Installer/Output/
+*.user
+*.suo
+.vs/
+
+# Runtime / local state
+*.log
+web-stage/
