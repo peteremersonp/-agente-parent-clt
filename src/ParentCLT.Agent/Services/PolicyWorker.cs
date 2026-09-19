@@ -198,6 +198,7 @@ public sealed class PolicyWorker : BackgroundService
         {
             // Compatibilidad heredada: sin programación, se aplica la blacklist global tal cual.
             _dnsFilter!.BlockAll = state.DnsMode == "block-all";
+            _dnsFilter!.AllowOnly = false;
             _dnsFilter!.ApplyRules(state.Blacklist);
         }
 
@@ -239,7 +240,7 @@ public sealed class PolicyWorker : BackgroundService
 
         if (active?.Profile == null)
         {
-            SetScheduledMode(state, "off", new List<BlacklistRule>(), "schedule:sin-ventana");
+            SetScheduledMode(state, "off", new List<BlacklistRule>(), new List<string>(), "schedule:sin-ventana");
             return;
         }
 
@@ -248,16 +249,23 @@ public sealed class PolicyWorker : BackgroundService
             .Select(r => new BlacklistRule(r.Domain ?? "", r.Type ?? "exact"))
             .Where(r => !string.IsNullOrWhiteSpace(r.Domain))
             .ToList();
-        SetScheduledMode(state, mode, rules, $"schedule:{active.Profile.Name}:{mode}:{rules.Count}");
+        var allowed = (active.Profile.Allowlist ?? new())
+            .Select(r => r.Domain ?? "")
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .ToList();
+        SetScheduledMode(state, mode, rules, allowed, $"schedule:{active.Profile.Name}:{mode}:{rules.Count}:{allowed.Count}");
     }
 
-    private void SetScheduledMode(AgentState state, string mode, List<BlacklistRule> rules, string key)
+    private void SetScheduledMode(AgentState state, string mode, List<BlacklistRule> rules, List<string> allowed, string key)
     {
         if (key == _appliedScheduleKey)
             return;
 
         _logger.LogInformation("Ventana programada: {Key} (modo={Mode})", key, mode);
         _dnsFilter!.BlockAll = mode == "block-all";
+        _dnsFilter!.AllowOnly = mode == "allow-only";
+        if (mode == "allow-only")
+            _dnsFilter!.SetAllowed(allowed);
         _dnsFilter!.ApplyRules(rules);
 
         if (mode == "off")

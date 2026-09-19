@@ -15,7 +15,9 @@ public sealed class DnsFilterServer : IDisposable
     private readonly ILogger<DnsFilterServer> _logger;
     private readonly HttpClient _doh;
     private volatile IReadOnlyList<BlacklistRule> _rules = Array.Empty<BlacklistRule>();
+    private volatile IReadOnlyList<string> _allowed = Array.Empty<string>();
     private volatile bool _blockAll;
+    private volatile bool _allowOnly;
     private UdpClient? _udp;
     private readonly object _rulesLock = new();
 
@@ -34,6 +36,33 @@ public sealed class DnsFilterServer : IDisposable
             _blockAll = value;
             _logger.LogInformation("BlockAll={Value}", value);
         }
+    }
+
+    /// <summary>
+    /// Modo whitelist (dns_mode = "allow-only"): bloquea TODO excepto los dominios
+    /// de la lista de permitidos (incluye subdominios).
+    /// </summary>
+    public bool AllowOnly
+    {
+        get => _allowOnly;
+        set
+        {
+            _allowOnly = value;
+            _logger.LogInformation("AllowOnly={Value}", value);
+        }
+    }
+
+    /// <summary>Fijar la lista de dominios permitidos (para el modo AllowOnly).</summary>
+    public void SetAllowed(IReadOnlyList<string> allowed)
+    {
+        lock (_rulesLock)
+        {
+            _allowed = allowed
+                .Select(d => d.Trim().TrimEnd('.').ToLowerInvariant())
+                .Where(d => d.Length > 0)
+                .ToArray();
+        }
+        _logger.LogInformation("Lista de permitidos actualizada: {Count} dominios", _allowed.Count);
     }
 
     public DnsFilterServer(ILogger<DnsFilterServer> logger, string upstreamDoH)
@@ -127,6 +156,19 @@ public sealed class DnsFilterServer : IDisposable
     {
         if (_blockAll)
             return true;
+
+        if (_allowOnly)
+        {
+            qname = qname.TrimEnd('.').ToLowerInvariant();
+            foreach (var allowed in _allowed)
+            {
+                // Permitido el dominio exacto y sus subdominios.
+                if (qname.Equals(allowed, StringComparison.Ordinal)
+                    || qname.EndsWith("." + allowed, StringComparison.Ordinal))
+                    return false;
+            }
+            return true;
+        }
 
         qname = qname.TrimEnd('.').ToLowerInvariant();
         foreach (var rule in _rules)

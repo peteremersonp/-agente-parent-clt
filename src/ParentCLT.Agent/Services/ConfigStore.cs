@@ -90,7 +90,8 @@ public sealed record PolicyScheduleDto(
 public sealed record PolicyScheduleProfileDto(
     string? Name,
     string? DnsMode,
-    List<PolicyRuleDto>? Blacklist);
+    List<PolicyRuleDto>? Blacklist,
+    List<PolicyRuleDto>? Allowlist);
 
 public sealed record HeartbeatRequest
 {
