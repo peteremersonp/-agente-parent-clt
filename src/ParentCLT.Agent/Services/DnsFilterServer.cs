@@ -16,6 +16,7 @@ public sealed class DnsFilterServer : IDisposable
     private readonly HttpClient _doh;
     private volatile IReadOnlyList<BlacklistRule> _rules = Array.Empty<BlacklistRule>();
     private volatile IReadOnlyList<string> _allowed = Array.Empty<string>();
+    private volatile IReadOnlyList<string> _management = Array.Empty<string>();
     private volatile bool _blockAll;
     private volatile bool _allowOnly;
     private UdpClient? _udp;
@@ -23,6 +24,24 @@ public sealed class DnsFilterServer : IDisposable
 
     public bool Running { get; private set; }
     public string? LastError { get; private set; }
+
+    /// <summary>
+    /// Dominios de GESTIÓN siempre permitidos (incluso en block-all/allow-only):
+    /// el propio dominio del servidor y su dominio raíz (p. ej. cparental.quanther.com
+    /// -> cparental.quanther.com + quanther.com y subdominios). Sin esto, el agente
+    /// no podría alcanzar la API durante bloqueos totales.
+    /// </summary>
+    public void SetManagementAllowed(IReadOnlyList<string> domains)
+    {
+        lock (_rulesLock)
+        {
+            _management = domains
+                .Select(d => d.Trim().TrimEnd('.').ToLowerInvariant())
+                .Where(d => d.Length > 0)
+                .ToArray();
+        }
+        _logger.LogInformation("Dominios de gestion siempre permitidos: {Domains}", string.Join(", ", _management));
+    }
 
     /// <summary>
     /// Modo bloqueo total: responde NXDOMAIN a CUALQUIER consulta (internet sin salida).
@@ -154,12 +173,22 @@ public sealed class DnsFilterServer : IDisposable
 
     private bool IsBlocked(string qname)
     {
+        qname = qname.TrimEnd('.').ToLowerInvariant();
+
+        // Dominios de gestión SIEMPRE permitidos (incluso en block-all): el agente
+        // debe poder alcanzar su API y el panel cparental.quanther.com nunca muere.
+        foreach (var mgmt in _management)
+        {
+            if (qname.Equals(mgmt, StringComparison.Ordinal)
+                || qname.EndsWith("." + mgmt, StringComparison.Ordinal))
+                return false;
+        }
+
         if (_blockAll)
             return true;
 
         if (_allowOnly)
         {
-            qname = qname.TrimEnd('.').ToLowerInvariant();
             foreach (var allowed in _allowed)
             {
                 // Permitido el dominio exacto y sus subdominios.

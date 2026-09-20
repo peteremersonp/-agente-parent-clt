@@ -75,6 +75,23 @@ Ejecuté el ciclo completo en la máquina de prueba (NO la VM limpia):
 - **BUG CRÍTICO REDESCUBIERTO — restore en desinstalación falló OTRA VEZ en el portátil** (DNS quedó 127.0.0.1 tras desinstalar con filtro activo). Causa más probable: carrera — `sc stop` es asíncrono y el servicio/watchdog pueden re-aplicar el filtro después del restore (también: `RestoreOriginalDns` hacía `Clear()` del original aunque el WMI devolviera error). **HARDENING aplicado**: (1) uninstaller ahora hace `taskkill /F /IM ParentCLT.Agent.exe /T` antes del restore (ningún proceso vivo puede re-aplicar); (2) `RestoreOriginalDns` solo borra los originales que restauraron con código 0 (los fallidos quedan para reintento). Setup republicado.
 - Pendiente de validar: reinstalar con setup nuevo → filtro + DoH OK → desinstalar → confirmar restauración DNS. Si vuelve a fallar: revisar Event Viewer (Application, source ParentCLT.Agent) del portátil.
 - **RESTAURACIÓN DNS POR DHCP (19-Sep)**: `OriginalDns` ahora registra si el DNS del adaptador venía por DHCP (registry `NameServer` vacío) → al restaurar, `SetDNSServerSearchOrder(null)` devuelve el adaptador a automático (DHCP) en vez de fijar IPs guardadas. Estáticos se restauran como antes. Sobrevive a cambios de red/router.
+
+## M9: Configuración familiar (19-Sep-2026)
+
+**Modo `allow-only` (whitelist)**: perfil que bloquea TODO excepto su lista de permitidos (subdominios incluidos). Agente: `DnsFilterServer.AllowOnly` + `SetAllowed`; web: tabla `blacklist_profile_allows`, migración `030006`, CRUD en panel con nota de bypass. Test `AllowOnlyTest` (29 tests verdes).
+
+**Configuración de la familia (en producción)**:
+| Perfil | Modo | Uso |
+|---|---|---|
+| libre | off | sin límites (reservado, sin franjas) |
+| sin-internet | block-all | horario nocturno |
+| lista-escolar | allow-only (36) | IA (ChatGPT/Claude/Gemini/Copilot/Perplexity/DeepSeek/Grok) + Google/Images + LMS + MinEducación |
+| lista-nocturna | allow-only (4) | emergencia: google + wikipedia |
+| jornada-domestica | local-filter (31) | bloquea redes sociales + mensajería (whatsapp/telegram/messenger) + youtube, con wildcards |
+
+**Jornadas** (cobertura 24/7 sin huecos): L-V 0-5 sin / 5-14 escolar / 14-19 doméstica / 19-22 lista-nocturna / 22-24 sin · Sáb 0-7 sin / 7-20 doméstica / 20-24 sin · Dom 0-7 sin / 7-19 doméstica / 19-24 sin.
+
+Seeded via `ParentScheduleSeeder` reescrito (reemplaza programación anterior). Repos: web `9c1baec`, agente `1d69093`.
 - **TESTBOX-01** (esta PC dev) también corre el agente con la franja activa — OJO: su servicio en memoria es el binario de AYER (sin schedule); reiniciar servicio o reinstalar para actualizar.
 
 ## Notas / advertencias

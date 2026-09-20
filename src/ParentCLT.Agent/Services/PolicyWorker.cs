@@ -47,6 +47,16 @@ public sealed class PolicyWorker : BackgroundService
             throw new InvalidOperationException("Falta 'Server:BaseUrl' en appsettings.json");
         _http.BaseAddress = new Uri(baseUrl);
 
+        // El dominio del servidor (y su raíz: cparental.quanther.com -> quanther.com)
+        // queda SIEMPRE permitido en el filtro: el agente debe alcanzar su API incluso
+        // durante block-all, y el panel no debe morir nunca para la familia.
+        var serverHost = new Uri(baseUrl).Host.TrimEnd('.').ToLowerInvariant();
+        var mgmt = new List<string> { serverHost };
+        var labels = serverHost.Split('.');
+        if (labels.Length > 2)
+            mgmt.Add(string.Join('.', labels[^2..]));
+        _dnsFilter!.SetManagementAllowed(mgmt);
+
         var state = _store.Load() ?? new AgentState();
         if (!string.IsNullOrWhiteSpace(_config["Device:MachineId"]))
             state.MachineId = _config["Device:MachineId"]!;

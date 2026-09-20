@@ -54,7 +54,7 @@ var
 const
   Service = '{#ServiceName}';
   WatchdogTaskName = '{#WatchdogTask}';
-  DefaultUrl = 'http://localhost:8899';
+  DefaultUrl = 'https://cparental.quanther.com';
 
 const
   AppName = '{#MyAppName}';
