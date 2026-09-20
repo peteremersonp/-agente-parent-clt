@@ -92,6 +92,22 @@ Ejecuté el ciclo completo en la máquina de prueba (NO la VM limpia):
 **Jornadas** (cobertura 24/7 sin huecos): L-V 0-5 sin / 5-14 escolar / 14-19 doméstica / 19-22 lista-nocturna / 22-24 sin · Sáb 0-7 sin / 7-20 doméstica / 20-24 sin · Dom 0-7 sin / 7-19 doméstica / 19-24 sin.
 
 Seeded via `ParentScheduleSeeder` reescrito (reemplaza programación anterior). Repos: web `9c1baec`, agente `1d69093`.
+
+## M10: Login con Google OAuth (19-Sep-2026)
+
+- **Flujo OAuth2 manual** (sin Socialite, filosofía del proyecto): `GoogleAuthController` → `GET /google/redirect` (consentimiento con state en sesión) → `GET /google/callbak` (ortografía EXACTA porque así está registrado en Google Cloud Console) → token exchange → userinfo → **login solo si el email existe en users**.
+- **Sin auto-alta**: Google NO crea usuarios; el callback rechaza emails desconocidos (lista blanca explícita).
+- **Seeder `GoogleUsersSeeder`** (registrado en DatabaseSeeder): peter.emerson.p@gmail.com, diana.marcela.velezlemos@gmail.com, moneco84@gmail.com (passwords aleatorios inutilizables — solo entran por Google).
+- Credenciales en `.env` (NO en git): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI (producción). En Google Cloud Console están registrados los URIs de prod y `http://127.0.0.1:8000/google/callbak` (local con serve en 8000; en 8899 no matchea — añadir el URI si hace falta).
+- Botón "Iniciar sesión con Google" en el login. Push web `96d9709`.
+
+## M11: PWA instalable en móviles (20-Sep-2026)
+
+- `public/manifest.json` (standalone, theme slate-900, iconos 192/512 + maskable), `public/sw.js` (navegación: red primero + fallback `/offline`; assets cache-first; NUNCA cachea `/api/` ni `/downloads/`), vista `pwa/offline.blade.php` + ruta `/offline`.
+- Layout y login con `<link rel="manifest">`, `theme-color`, `apple-touch-icon` y registro del SW.
+- Iconos generados con GD (esmeralda redondeado + "P" DejaVu Bold) via `generar-iconos.php` (staging; re-ejecutar si se cambia el diseño).
+- Verificado: manifest/sw/offline/iconos 200 + 29 tests. Push `a31286f`. En producción: `git pull` (sin migraciones).
+- Instalación en Android/Chrome: menú → "Instalar app"/"Añadir a pantalla de inicio". iOS/Safari: Compartir → "Añadir a pantalla de inicio" (Safari NO soporta instalación PWA completa como Chrome; funciona como acceso directo standalone).
 - **TESTBOX-01** (esta PC dev) también corre el agente con la franja activa — OJO: su servicio en memoria es el binario de AYER (sin schedule); reiniciar servicio o reinstalar para actualizar.
 
 ## Notas / advertencias
